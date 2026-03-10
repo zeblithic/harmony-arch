@@ -4,7 +4,7 @@ Microarchitectural simulation experiments for the Harmony protocol stack.
 
 ## Phase A: WORM Cache Coherence
 
-Measures the cache coherence traffic reduction from Write-Once-Read-Many (WORM) memory semantics vs. traditional mutable memory on a 4-core RISC-V system simulated in gem5.
+Measures the cache coherence traffic reduction from Write-Once-Read-Many (WORM) memory semantics vs. traditional mutable memory on a multi-core RISC-V system simulated in gem5.
 
 See `docs/plans/2026-03-09-worm-coherence-simulation-design.md` for the full design.
 

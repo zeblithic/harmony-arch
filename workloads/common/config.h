@@ -20,10 +20,12 @@
 #define TOTAL_BLOCKS (NUM_PRODUCERS * BLOCKS_PER_PRODUCER)
 
 /* Number of pre-allocated slots in the mutable workload's buffer pool.
- * Must be >= TOTAL_BLOCKS to avoid livelock in round-robin slot assignment. */
-#define MUTABLE_POOL_SIZE 64
+ * Intentionally SMALLER than TOTAL_BLOCKS to force in-place slot reuse —
+ * this is what generates the M→I invalidation traffic we want to measure.
+ * Must be >= NUM_PRODUCERS so each producer can claim a slot at startup. */
+#define MUTABLE_POOL_SIZE 16
 
-_Static_assert(MUTABLE_POOL_SIZE >= (NUM_PRODUCERS * BLOCKS_PER_PRODUCER),
-               "MUTABLE_POOL_SIZE must be >= TOTAL_BLOCKS to avoid livelock");
+_Static_assert(MUTABLE_POOL_SIZE >= NUM_PRODUCERS,
+               "MUTABLE_POOL_SIZE must be >= NUM_PRODUCERS for startup parallelism");
 
 #endif /* HARMONY_WORKLOAD_CONFIG_H */

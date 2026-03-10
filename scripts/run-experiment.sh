@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GEM5="$REPO_ROOT/gem5/build/RISCV/gem5.opt"
 CONFIG="$REPO_ROOT/configs/phase_a.py"
 RESULTS_DIR="$REPO_ROOT/results"
-NUM_CORES=4
+NUM_CORES=9
 SKIP_BUILD=false
 
 # Parse args

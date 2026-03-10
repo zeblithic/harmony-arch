@@ -1,11 +1,12 @@
 """gem5 configuration for Phase A: WORM coherence simulation.
 
-4-core RISC-V TimingSimpleCPU with Ruby MESI_Two_Level coherence and
-Garnet2.0 mesh interconnect. Syscall Emulation (SE) mode.
+RISC-V TimingSimpleCPU with Ruby MESI_Two_Level coherence.
+Syscall Emulation (SE) mode — each core provides one thread context,
+so --num-cores must be >= total threads in the workload.
 
 Usage:
     build/RISCV/gem5.opt configs/phase_a.py --cmd <binary> \
-        [--num-cores 4] [--l1d-size 32kB] [--l2-size 1MB]
+        [--num-cores 9] [--l1d-size 32kB] [--l2-size 1MB]
 """
 
 import argparse
@@ -31,8 +32,8 @@ def parse_args():
         help="Path to the RISC-V binary to simulate"
     )
     parser.add_argument(
-        "--num-cores", type=int, default=4,
-        help="Number of CPU cores (default: 4)"
+        "--num-cores", type=int, default=9,
+        help="Number of CPU cores (default: 9 — must be >= thread count in workload)"
     )
     parser.add_argument(
         "--l1d-size", type=str, default="32kB",
@@ -115,7 +116,6 @@ def main():
     simulator.run()
 
     print(f"\nSimulation complete.")
-    print(f"Stats written to: m5out/stats.txt")
 
 
 if __name__ in ("__m5_main__", "__main__"):

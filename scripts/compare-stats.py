@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
 from pathlib import Path
 
 
@@ -42,7 +41,7 @@ METRICS = [
 ]
 
 
-def parse_stats(filepath: str) -> dict[str, int]:
+def parse_stats(filepath: str) -> dict[str, int | None]:
     """Extract metrics from a gem5 stats.txt file."""
     text = Path(filepath).read_text()
     results = {}
@@ -88,8 +87,8 @@ def compute_change(mutable_val: int | None, worm_val: int | None) -> str:
 
 
 def generate_report(
-    mutable_stats: dict[str, int],
-    worm_stats: dict[str, int],
+    mutable_stats: dict[str, int | None],
+    worm_stats: dict[str, int | None],
 ) -> str:
     """Generate a markdown comparison report."""
     lines = []
