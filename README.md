@@ -29,7 +29,7 @@ cat analysis/comparison.md
 
 - Linux (Ubuntu 22.04+ recommended)
 - `riscv64-linux-gnu-gcc` (apt: `gcc-riscv64-linux-gnu`)
-- Python 3.8+
+- Python 3.8+ (3.10+ without `__future__` annotations)
 - SCons, build-essential, libprotobuf-dev, protobuf-compiler
 - ~8 GB RAM for gem5 build
 - ~30 GB disk for gem5 source + build

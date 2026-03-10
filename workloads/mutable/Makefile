@@ -14,10 +14,10 @@ TARGET = mutable_prodcon
 
 all: $(TARGET)
 
-$(TARGET): main.c ../common/config.h
+$(TARGET): main.c ../common/config.h ../common/workload.h
 	$(CC_RISCV) $(CFLAGS) -o $@ main.c
 
-native: main.c ../common/config.h
+native: main.c ../common/config.h ../common/workload.h
 	$(CC_NATIVE) -O2 -Wall -Wextra -pthread -o $(TARGET)_native main.c
 
 clean:

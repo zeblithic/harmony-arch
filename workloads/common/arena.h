@@ -31,11 +31,18 @@ static inline int arena_init(arena_t *a, size_t capacity) {
 }
 
 /* Atomically claim `size` bytes from the arena.
- * Returns the offset of the allocated region, or (size_t)-1 on overflow. */
+ * Returns the offset of the allocated region, or (size_t)-1 on overflow.
+ * Uses CAS loop to avoid permanently corrupting the offset on overflow. */
 static inline size_t arena_alloc(arena_t *a, size_t size) {
-    size_t off = atomic_fetch_add(&a->offset, size);
-    if (off + size > a->capacity) return (size_t)-1;
-    return off;
+    size_t old_off, new_off;
+    do {
+        old_off = atomic_load_explicit(&a->offset, memory_order_relaxed);
+        if (old_off + size > a->capacity) return (size_t)-1;
+        new_off = old_off + size;
+    } while (!atomic_compare_exchange_weak_explicit(
+                 &a->offset, &old_off, new_off,
+                 memory_order_relaxed, memory_order_relaxed));
+    return old_off;
 }
 
 /* Get a pointer to the data at the given offset. */

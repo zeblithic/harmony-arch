@@ -19,7 +19,11 @@
 /* Total blocks across all producers. */
 #define TOTAL_BLOCKS (NUM_PRODUCERS * BLOCKS_PER_PRODUCER)
 
-/* Number of pre-allocated slots in the mutable workload's buffer pool. */
+/* Number of pre-allocated slots in the mutable workload's buffer pool.
+ * Must be >= TOTAL_BLOCKS to avoid livelock in round-robin slot assignment. */
 #define MUTABLE_POOL_SIZE 64
+
+_Static_assert(MUTABLE_POOL_SIZE >= (NUM_PRODUCERS * BLOCKS_PER_PRODUCER),
+               "MUTABLE_POOL_SIZE must be >= TOTAL_BLOCKS to avoid livelock");
 
 #endif /* HARMONY_WORKLOAD_CONFIG_H */

@@ -17,6 +17,7 @@
 
 #include "../common/arena.h"
 #include "../common/config.h"
+#include "../common/workload.h"
 
 /* Shared arena — append-only, never freed */
 static arena_t arena;
@@ -33,24 +34,6 @@ static mailbox_entry_t mailboxes[NUM_PRODUCERS][BLOCKS_PER_PRODUCER];
 /* Per-thread checksum results */
 static uint32_t producer_checksums[NUM_PRODUCERS];
 static uint32_t consumer_checksums[NUM_CONSUMERS];
-
-/* Same deterministic fill as mutable version — checksums must match. */
-static void fill_block(uint8_t *buf, int producer_id, int block_index) {
-    uint32_t seed = (uint32_t)(producer_id * BLOCKS_PER_PRODUCER + block_index);
-    for (int i = 0; i < BLOCK_SIZE; i++) {
-        seed = seed * 1103515245 + 12345;  /* LCG */
-        buf[i] = (uint8_t)(seed >> 16);
-    }
-}
-
-/* Same checksum as mutable version. */
-static uint32_t checksum(const uint8_t *buf, int len) {
-    uint32_t sum = 0;
-    for (int i = 0; i < len; i++) {
-        sum += buf[i];
-    }
-    return sum;
-}
 
 static void *producer_thread(void *arg) {
     int id = (int)(intptr_t)arg;

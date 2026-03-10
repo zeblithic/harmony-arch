@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "../common/config.h"
+#include "../common/workload.h"
 
 /* Slot states */
 #define SLOT_FREE  0
@@ -42,25 +43,6 @@ static void lock_slot(int slot) {
 
 static void unlock_slot(int slot) {
     atomic_store(&slot_lock[slot], 0);
-}
-
-/* Deterministic data fill — same pattern as WORM version for checksum match.
- * Uses producer_id and block_index to generate reproducible data. */
-static void fill_block(uint8_t *buf, int producer_id, int block_index) {
-    uint32_t seed = (uint32_t)(producer_id * BLOCKS_PER_PRODUCER + block_index);
-    for (int i = 0; i < BLOCK_SIZE; i++) {
-        seed = seed * 1103515245 + 12345;  /* LCG */
-        buf[i] = (uint8_t)(seed >> 16);
-    }
-}
-
-/* Simple checksum — sum of all bytes as uint32. */
-static uint32_t checksum(const uint8_t *buf, int len) {
-    uint32_t sum = 0;
-    for (int i = 0; i < len; i++) {
-        sum += buf[i];
-    }
-    return sum;
 }
 
 /* Mailbox: producer writes (slot_index, block_index) pairs for its consumer.

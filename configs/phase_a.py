@@ -118,5 +118,5 @@ def main():
     print(f"Stats written to: m5out/stats.txt")
 
 
-if __name__ == "__m5_main__":
+if __name__ in ("__m5_main__", "__main__"):
     main()
