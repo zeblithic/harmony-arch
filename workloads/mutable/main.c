@@ -1,0 +1,196 @@
+/* Mutable producer-consumer workload for WORM coherence simulation.
+ *
+ * This version uses traditional in-place mutation:
+ * - Shared buffer pool with locks (spinlocks via atomics)
+ * - Producers overwrite existing slots
+ * - Status array bounces between cores
+ *
+ * This triggers the full MESI cache coherence protocol.
+ */
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../common/config.h"
+
+/* Slot states */
+#define SLOT_FREE  0
+#define SLOT_READY 1
+
+/* Shared buffer pool — pre-allocated, reused (mutated) */
+static uint8_t buffer_pool[MUTABLE_POOL_SIZE][BLOCK_SIZE];
+static atomic_int slot_status[MUTABLE_POOL_SIZE];
+static atomic_int slot_lock[MUTABLE_POOL_SIZE];
+
+/* Next slot index for round-robin assignment */
+static atomic_int next_slot = 0;
+
+/* Per-thread checksum results */
+static uint32_t producer_checksums[NUM_PRODUCERS];
+static uint32_t consumer_checksums[NUM_CONSUMERS];
+
+/* Simple spinlock on slot */
+static void lock_slot(int slot) {
+    int expected = 0;
+    while (!atomic_compare_exchange_weak(&slot_lock[slot], &expected, 1)) {
+        expected = 0;
+    }
+}
+
+static void unlock_slot(int slot) {
+    atomic_store(&slot_lock[slot], 0);
+}
+
+/* Deterministic data fill — same pattern as WORM version for checksum match.
+ * Uses producer_id and block_index to generate reproducible data. */
+static void fill_block(uint8_t *buf, int producer_id, int block_index) {
+    uint32_t seed = (uint32_t)(producer_id * BLOCKS_PER_PRODUCER + block_index);
+    for (int i = 0; i < BLOCK_SIZE; i++) {
+        seed = seed * 1103515245 + 12345;  /* LCG */
+        buf[i] = (uint8_t)(seed >> 16);
+    }
+}
+
+/* Simple checksum — sum of all bytes as uint32. */
+static uint32_t checksum(const uint8_t *buf, int len) {
+    uint32_t sum = 0;
+    for (int i = 0; i < len; i++) {
+        sum += buf[i];
+    }
+    return sum;
+}
+
+/* Mailbox: producer writes (slot_index, block_index) pairs for its consumer.
+ * We use a simple ring buffer per producer-consumer pair. */
+typedef struct {
+    atomic_int slot;     /* Which slot holds the data */
+    atomic_int ready;    /* 1 when producer has written this entry */
+} mailbox_entry_t;
+
+static mailbox_entry_t mailboxes[NUM_PRODUCERS][BLOCKS_PER_PRODUCER];
+
+static void *producer_thread(void *arg) {
+    int id = (int)(intptr_t)arg;
+    uint32_t local_checksum = 0;
+
+    for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+        /* Claim a slot (round-robin) */
+        int slot = atomic_fetch_add(&next_slot, 1) % MUTABLE_POOL_SIZE;
+
+        /* Wait for slot to be free, then lock it */
+        while (1) {
+            lock_slot(slot);
+            if (atomic_load(&slot_status[slot]) == SLOT_FREE) {
+                break;
+            }
+            unlock_slot(slot);
+            /* Spin — in a real system we'd yield */
+        }
+
+        /* Write data INTO the slot (overwriting previous contents) */
+        fill_block(buffer_pool[slot], id, b);
+
+        /* Compute producer-side checksum */
+        local_checksum += checksum(buffer_pool[slot], BLOCK_SIZE);
+
+        /* Mark slot ready */
+        atomic_store(&slot_status[slot], SLOT_READY);
+        unlock_slot(slot);
+
+        /* Tell our consumer which slot to read */
+        atomic_store(&mailboxes[id][b].slot, slot);
+        atomic_store(&mailboxes[id][b].ready, 1);
+    }
+
+    producer_checksums[id] = local_checksum;
+    return NULL;
+}
+
+static void *consumer_thread(void *arg) {
+    int id = (int)(intptr_t)arg;
+    uint32_t local_checksum = 0;
+
+    for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+        /* Wait for our producer to post */
+        while (!atomic_load(&mailboxes[id][b].ready)) {
+            /* Spin */
+        }
+
+        int slot = atomic_load(&mailboxes[id][b].slot);
+
+        /* Wait for slot to be ready (should already be, but be safe) */
+        while (atomic_load(&slot_status[slot]) != SLOT_READY) {
+            /* Spin */
+        }
+
+        /* Read and checksum the data */
+        local_checksum += checksum(buffer_pool[slot], BLOCK_SIZE);
+
+        /* Mark slot free for reuse */
+        lock_slot(slot);
+        atomic_store(&slot_status[slot], SLOT_FREE);
+        unlock_slot(slot);
+    }
+
+    consumer_checksums[id] = local_checksum;
+    return NULL;
+}
+
+int main(void) {
+    pthread_t producers[NUM_PRODUCERS];
+    pthread_t consumers[NUM_CONSUMERS];
+
+    /* Initialize */
+    memset(buffer_pool, 0, sizeof(buffer_pool));
+    for (int i = 0; i < MUTABLE_POOL_SIZE; i++) {
+        atomic_store(&slot_status[i], SLOT_FREE);
+        atomic_store(&slot_lock[i], 0);
+    }
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+            atomic_store(&mailboxes[i][b].ready, 0);
+        }
+    }
+
+    printf("Mutable producer-consumer: %d producers, %d consumers, "
+           "%d blocks of %d bytes\n",
+           NUM_PRODUCERS, NUM_CONSUMERS, TOTAL_BLOCKS, BLOCK_SIZE);
+
+    /* Launch consumers first (they spin-wait) */
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_create(&consumers[i], NULL, consumer_thread, (void *)(intptr_t)i);
+    }
+
+    /* Launch producers */
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        pthread_create(&producers[i], NULL, producer_thread, (void *)(intptr_t)i);
+    }
+
+    /* Wait for all threads */
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        pthread_join(producers[i], NULL);
+    }
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_join(consumers[i], NULL);
+    }
+
+    /* Verify checksums */
+    uint32_t total_producer = 0, total_consumer = 0;
+    for (int i = 0; i < NUM_PRODUCERS; i++) total_producer += producer_checksums[i];
+    for (int i = 0; i < NUM_CONSUMERS; i++) total_consumer += consumer_checksums[i];
+
+    printf("Producer checksum: %u\n", total_producer);
+    printf("Consumer checksum: %u\n", total_consumer);
+
+    if (total_producer == total_consumer) {
+        printf("PASS: Checksums match.\n");
+    } else {
+        printf("FAIL: Checksum mismatch!\n");
+        return 1;
+    }
+
+    return 0;
+}
