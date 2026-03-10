@@ -6,7 +6,7 @@
 # 3. Run gem5 with the WORM workload
 # 4. Run comparison script
 #
-# Usage: bash scripts/run-experiment.sh [--skip-build] [--num-cores 4]
+# Usage: bash scripts/run-experiment.sh [--skip-build] [--num-cores 5]
 
 set -euo pipefail
 

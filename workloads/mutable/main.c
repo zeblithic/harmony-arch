@@ -145,12 +145,18 @@ int main(void) {
 
     /* Launch consumers first (they spin-wait) */
     for (int i = 0; i < NUM_CONSUMERS; i++) {
-        pthread_create(&consumers[i], NULL, consumer_thread, (void *)(intptr_t)i);
+        if (pthread_create(&consumers[i], NULL, consumer_thread, (void *)(intptr_t)i) != 0) {
+            perror("pthread_create consumer");
+            return 1;
+        }
     }
 
     /* Launch producers */
     for (int i = 0; i < NUM_PRODUCERS; i++) {
-        pthread_create(&producers[i], NULL, producer_thread, (void *)(intptr_t)i);
+        if (pthread_create(&producers[i], NULL, producer_thread, (void *)(intptr_t)i) != 0) {
+            perror("pthread_create producer");
+            return 1;
+        }
     }
 
     /* Wait for all threads */
