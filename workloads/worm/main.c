@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "../common/arena.h"
 #include "../common/config.h"
@@ -129,10 +128,16 @@ int main(void) {
 
     /* Wait for all threads */
     for (int i = 0; i < NUM_PRODUCERS; i++) {
-        pthread_join(producers[i], NULL);
+        if (pthread_join(producers[i], NULL) != 0) {
+            perror("pthread_join producer");
+            return 1;
+        }
     }
     for (int i = 0; i < NUM_CONSUMERS; i++) {
-        pthread_join(consumers[i], NULL);
+        if (pthread_join(consumers[i], NULL) != 0) {
+            perror("pthread_join consumer");
+            return 1;
+        }
     }
 
     /* Verify checksums match the mutable version */

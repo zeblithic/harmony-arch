@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "../common/config.h"
 #include "../common/workload.h"
@@ -104,12 +103,17 @@ static void *consumer_thread(void *arg) {
 
         int slot = atomic_load(&mailboxes[id][b].slot);
 
-        /* Invariant: producer stores ready=1 only after slot_status==SLOT_READY
-         * and unlock_slot, so observing ready==1 (seq_cst) guarantees the slot
-         * is SLOT_READY.  Use assert (compiles away under -DNDEBUG) to avoid
-         * an always-present atomic_load that would generate a spurious
-         * coherence event in the simulation, biasing M→I / invalidation counts
-         * against the mutable baseline. */
+        /* ORDERING: correctness depends on seq_cst ordering of the
+         * mailbox.ready load above.  The producer's store sequence is:
+         *   fill_block → slot_status=READY → unlock → mailbox.slot → mailbox.ready=1
+         * All stores are seq_cst, so observing ready==1 guarantees all prior
+         * writes (including the buffer data) are visible to this consumer.
+         *
+         * The assert below is a debug-only invariant check — it compiles away
+         * under -DNDEBUG.  Do NOT replace it with an always-present atomic_load:
+         * that would generate a spurious coherence event in gem5's Ruby model,
+         * biasing M→I / invalidation counts against the mutable baseline
+         * (see round 4 review feedback). */
         assert(atomic_load(&slot_status[slot]) == SLOT_READY);
         local_checksum += checksum(buffer_pool[slot], BLOCK_SIZE);
 
@@ -127,8 +131,8 @@ int main(void) {
     pthread_t producers[NUM_PRODUCERS];
     pthread_t consumers[NUM_CONSUMERS];
 
-    /* Initialize */
-    memset(buffer_pool, 0, sizeof(buffer_pool));
+    /* Initialize — buffer_pool is static (BSS-zeroed), no memset needed.
+     * The atomic_store calls below set slot_status and slot_lock explicitly. */
     for (int i = 0; i < MUTABLE_POOL_SIZE; i++) {
         atomic_store(&slot_status[i], SLOT_FREE);
         atomic_store(&slot_lock[i], 0);
@@ -161,10 +165,16 @@ int main(void) {
 
     /* Wait for all threads */
     for (int i = 0; i < NUM_PRODUCERS; i++) {
-        pthread_join(producers[i], NULL);
+        if (pthread_join(producers[i], NULL) != 0) {
+            perror("pthread_join producer");
+            return 1;
+        }
     }
     for (int i = 0; i < NUM_CONSUMERS; i++) {
-        pthread_join(consumers[i], NULL);
+        if (pthread_join(consumers[i], NULL) != 0) {
+            perror("pthread_join consumer");
+            return 1;
+        }
     }
 
     /* Verify checksums */

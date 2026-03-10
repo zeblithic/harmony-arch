@@ -21,15 +21,18 @@ from pathlib import Path
 # Each entry: (display_name, regex_pattern, aggregate_function)
 # aggregate_function: "sum" sums across all controllers, "first" takes the first match
 METRICS = [
-    # MESI state transitions (summed across all L1 controllers)
-    ("I_to_M transitions", r"L1Cache_Controller.*\.I_to_M\s+(\d+)", "sum"),
-    ("I_to_S transitions", r"L1Cache_Controller.*\.I_to_S\s+(\d+)", "sum"),
-    ("M_to_I transitions", r"L1Cache_Controller.*\.M_to_I\s+(\d+)", "sum"),
-    ("S_to_I transitions", r"L1Cache_Controller.*\.S_to_I\s+(\d+)", "sum"),
-    ("M_to_S transitions", r"L1Cache_Controller.*\.M_to_S\s+(\d+)", "sum"),
-    ("I_to_E transitions", r"L1Cache_Controller.*\.I_to_E\s+(\d+)", "sum"),
-    ("E_to_I transitions", r"L1Cache_Controller.*\.E_to_I\s+(\d+)", "sum"),
-    ("E_to_M transitions", r"L1Cache_Controller.*\.E_to_M\s+(\d+)", "sum"),
+    # MESI state transitions (summed across all L1 controllers).
+    # Patterns match both gem5 naming conventions:
+    #   stdlib API: "...L1Cache_Controller.L1Cache_Controller-0.I_to_M"
+    #   raw Ruby:   "...l1_cntrl0.I_to_M"
+    ("I_to_M transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.I_to_M\s+(\d+)", "sum"),
+    ("I_to_S transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.I_to_S\s+(\d+)", "sum"),
+    ("M_to_I transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.M_to_I\s+(\d+)", "sum"),
+    ("S_to_I transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.S_to_I\s+(\d+)", "sum"),
+    ("M_to_S transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.M_to_S\s+(\d+)", "sum"),
+    ("I_to_E transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.I_to_E\s+(\d+)", "sum"),
+    ("E_to_I transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.E_to_I\s+(\d+)", "sum"),
+    ("E_to_M transitions", r"(?:L1Cache_Controller|l1_cntrl)\w*\.E_to_M\s+(\d+)", "sum"),
 
     # Network messages
     ("Request_Control msgs", r"msg_count\.Request_Control\s+(\d+)", "sum"),

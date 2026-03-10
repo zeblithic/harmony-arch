@@ -12,7 +12,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 typedef struct {
     uint8_t *base;
@@ -26,7 +25,10 @@ static inline int arena_init(arena_t *a, size_t capacity) {
     if (!a->base) return -1;
     a->capacity = capacity;
     atomic_store(&a->offset, 0);
-    memset(a->base, 0, capacity);
+    /* No memset — producers overwrite each region entirely via fill_block()
+     * before any consumer reads it.  Zeroing here would place the entire
+     * arena into M-state on core 0, inflating M→I transitions when
+     * producer threads on other cores claim their regions. */
     return 0;
 }
 
