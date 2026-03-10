@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 
@@ -43,7 +44,13 @@ METRICS = [
 
 def parse_stats(filepath: str) -> dict[str, int | None]:
     """Extract metrics from a gem5 stats.txt file."""
-    text = Path(filepath).read_text()
+    path = Path(filepath)
+    if not path.exists():
+        raise SystemExit(
+            f"ERROR: stats file not found: {filepath}\n"
+            "Did the gem5 simulation complete successfully?"
+        )
+    text = path.read_text()
     results = {}
 
     for name, pattern, agg in METRICS:
@@ -178,6 +185,21 @@ def main():
 
     mutable = parse_stats(args.mutable_stats)
     worm = parse_stats(args.worm_stats)
+
+    # Warn about missing critical metrics (pattern mismatch with gem5 stat names)
+    critical = {"M_to_I transitions", "I_to_M transitions", "Request_Control msgs"}
+    for label, stats, path in [
+        ("mutable", mutable, args.mutable_stats),
+        ("WORM", worm, args.worm_stats),
+    ]:
+        missing = [k for k in critical if stats.get(k) is None]
+        if missing:
+            print(
+                f"WARNING: {path}: metrics not found: {missing}\n"
+                "Check that METRICS patterns match your gem5 build's stat names.",
+                file=sys.stderr,
+            )
+
     report = generate_report(mutable, worm)
 
     if args.output:

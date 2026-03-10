@@ -109,11 +109,12 @@ int main(void) {
            "%d blocks of %d bytes\n",
            NUM_PRODUCERS, NUM_CONSUMERS, TOTAL_BLOCKS, BLOCK_SIZE);
 
-    /* Launch consumers first (they spin-wait) */
+    /* Launch consumers first (they spin-wait).
+     * On failure, let exit() clean up — arena_destroy() here would free
+     * memory that already-running threads may still be accessing. */
     for (int i = 0; i < NUM_CONSUMERS; i++) {
         if (pthread_create(&consumers[i], NULL, consumer_thread, (void *)(intptr_t)i) != 0) {
             perror("pthread_create consumer");
-            arena_destroy(&arena);
             return 1;
         }
     }
@@ -122,7 +123,6 @@ int main(void) {
     for (int i = 0; i < NUM_PRODUCERS; i++) {
         if (pthread_create(&producers[i], NULL, producer_thread, (void *)(intptr_t)i) != 0) {
             perror("pthread_create producer");
-            arena_destroy(&arena);
             return 1;
         }
     }
