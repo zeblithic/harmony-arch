@@ -122,9 +122,15 @@ def generate_report(
             )
         elif m_to_i_m > 0:
             reduction = (1 - m_to_i_w / m_to_i_m) * 100
-            lines.append(
-                f"- **M→I transitions:** {reduction:.1f}% reduction in WORM."
-            )
+            if reduction >= 0:
+                lines.append(
+                    f"- **M→I transitions:** {reduction:.1f}% reduction in WORM."
+                )
+            else:
+                lines.append(
+                    f"- **M→I transitions:** {abs(reduction):.1f}% increase in WORM "
+                    "(unexpected — check for CAS retry overhead)."
+                )
 
     req_m = mutable_stats.get("Request_Control msgs")
     req_w = worm_stats.get("Request_Control msgs")
