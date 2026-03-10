@@ -1,0 +1,165 @@
+/* WORM producer-consumer workload for cache coherence simulation.
+ *
+ * This version uses Write-Once-Read-Many (WORM) memory semantics:
+ * - Append-only arena with atomic offset (no overwrites)
+ * - Each cache line transitions I→S/E exactly once, stays valid forever
+ * - Single-writer mailboxes (no coherence contention on coordination)
+ * - No locks
+ *
+ * This minimizes MESI coherence traffic: no M→I, no invalidation broadcasts.
+ */
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../common/arena.h"
+#include "../common/config.h"
+
+/* Shared arena — append-only, never freed */
+static arena_t arena;
+
+/* Per-producer mailbox: producer writes offset, consumer reads it.
+ * Single-writer/single-reader — no coherence contention. */
+typedef struct {
+    atomic_size_t offset;  /* Arena offset of the block */
+    atomic_int ready;      /* 1 when producer has written this entry */
+} mailbox_entry_t;
+
+static mailbox_entry_t mailboxes[NUM_PRODUCERS][BLOCKS_PER_PRODUCER];
+
+/* Per-thread checksum results */
+static uint32_t producer_checksums[NUM_PRODUCERS];
+static uint32_t consumer_checksums[NUM_CONSUMERS];
+
+/* Same deterministic fill as mutable version — checksums must match. */
+static void fill_block(uint8_t *buf, int producer_id, int block_index) {
+    uint32_t seed = (uint32_t)(producer_id * BLOCKS_PER_PRODUCER + block_index);
+    for (int i = 0; i < BLOCK_SIZE; i++) {
+        seed = seed * 1103515245 + 12345;  /* LCG */
+        buf[i] = (uint8_t)(seed >> 16);
+    }
+}
+
+/* Same checksum as mutable version. */
+static uint32_t checksum(const uint8_t *buf, int len) {
+    uint32_t sum = 0;
+    for (int i = 0; i < len; i++) {
+        sum += buf[i];
+    }
+    return sum;
+}
+
+static void *producer_thread(void *arg) {
+    int id = (int)(intptr_t)arg;
+    uint32_t local_checksum = 0;
+
+    for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+        /* Claim fresh region from arena — never previously written */
+        size_t off = arena_alloc(&arena, BLOCK_SIZE);
+        if (off == (size_t)-1) {
+            fprintf(stderr, "Arena overflow!\n");
+            exit(1);
+        }
+
+        /* Write data to the NEW region (write-once) */
+        uint8_t *block = arena_ptr(&arena, off);
+        fill_block(block, id, b);
+
+        /* Compute producer-side checksum */
+        local_checksum += checksum(block, BLOCK_SIZE);
+
+        /* Publish offset to mailbox (single-writer) */
+        atomic_store(&mailboxes[id][b].offset, off);
+        atomic_store(&mailboxes[id][b].ready, 1);
+    }
+
+    producer_checksums[id] = local_checksum;
+    return NULL;
+}
+
+static void *consumer_thread(void *arg) {
+    int id = (int)(intptr_t)arg;
+    uint32_t local_checksum = 0;
+
+    for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+        /* Wait for our producer to post */
+        while (!atomic_load(&mailboxes[id][b].ready)) {
+            /* Spin */
+        }
+
+        /* Read offset and data (immutable — will never change) */
+        size_t off = atomic_load(&mailboxes[id][b].offset);
+        const uint8_t *block = arena_ptr(&arena, off);
+
+        /* Compute checksum */
+        local_checksum += checksum(block, BLOCK_SIZE);
+
+        /* No slot-free needed — WORM data is never reclaimed */
+    }
+
+    consumer_checksums[id] = local_checksum;
+    return NULL;
+}
+
+int main(void) {
+    pthread_t producers[NUM_PRODUCERS];
+    pthread_t consumers[NUM_CONSUMERS];
+
+    /* Initialize arena — sized for all blocks */
+    size_t arena_size = (size_t)TOTAL_BLOCKS * BLOCK_SIZE;
+    if (arena_init(&arena, arena_size) != 0) {
+        fprintf(stderr, "Failed to initialize arena\n");
+        return 1;
+    }
+
+    /* Initialize mailboxes */
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        for (int b = 0; b < BLOCKS_PER_PRODUCER; b++) {
+            atomic_store(&mailboxes[i][b].ready, 0);
+        }
+    }
+
+    printf("WORM producer-consumer: %d producers, %d consumers, "
+           "%d blocks of %d bytes\n",
+           NUM_PRODUCERS, NUM_CONSUMERS, TOTAL_BLOCKS, BLOCK_SIZE);
+
+    /* Launch consumers first (they spin-wait) */
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_create(&consumers[i], NULL, consumer_thread, (void *)(intptr_t)i);
+    }
+
+    /* Launch producers */
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        pthread_create(&producers[i], NULL, producer_thread, (void *)(intptr_t)i);
+    }
+
+    /* Wait for all threads */
+    for (int i = 0; i < NUM_PRODUCERS; i++) {
+        pthread_join(producers[i], NULL);
+    }
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_join(consumers[i], NULL);
+    }
+
+    /* Verify checksums match the mutable version */
+    uint32_t total_producer = 0, total_consumer = 0;
+    for (int i = 0; i < NUM_PRODUCERS; i++) total_producer += producer_checksums[i];
+    for (int i = 0; i < NUM_CONSUMERS; i++) total_consumer += consumer_checksums[i];
+
+    printf("Producer checksum: %u\n", total_producer);
+    printf("Consumer checksum: %u\n", total_consumer);
+
+    if (total_producer == total_consumer) {
+        printf("PASS: Checksums match.\n");
+    } else {
+        printf("FAIL: Checksum mismatch!\n");
+        arena_destroy(&arena);
+        return 1;
+    }
+
+    arena_destroy(&arena);
+    return 0;
+}

@@ -6,7 +6,9 @@ results/
 
 # Compiled workload binaries
 workloads/mutable/mutable_prodcon
+workloads/mutable/mutable_prodcon_native
 workloads/worm/worm_prodcon
+workloads/worm/worm_prodcon_native
 workloads/mutable/*.o
 workloads/worm/*.o
 
