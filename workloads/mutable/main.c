@@ -7,6 +7,7 @@
  *
  * This triggers the full MESI cache coherence protocol.
  */
+#include <assert.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -103,13 +104,13 @@ static void *consumer_thread(void *arg) {
 
         int slot = atomic_load(&mailboxes[id][b].slot);
 
-        /* Wait for slot to be ready (should already be, but be safe) */
-        while (atomic_load(&slot_status[slot]) != SLOT_READY) {
-            /* Spin */
-        }
-
-        /* slot_status == SLOT_READY guarantees no producer is writing;
-         * read is safe without holding slot_lock. */
+        /* Invariant: producer stores ready=1 only after slot_status==SLOT_READY
+         * and unlock_slot, so observing ready==1 (seq_cst) guarantees the slot
+         * is SLOT_READY.  Use assert (compiles away under -DNDEBUG) to avoid
+         * an always-present atomic_load that would generate a spurious
+         * coherence event in the simulation, biasing M→I / invalidation counts
+         * against the mutable baseline. */
+        assert(atomic_load(&slot_status[slot]) == SLOT_READY);
         local_checksum += checksum(buffer_pool[slot], BLOCK_SIZE);
 
         /* Acquire lock only to update slot_status atomically. */

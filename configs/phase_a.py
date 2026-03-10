@@ -63,6 +63,14 @@ def parse_args():
 
 
 def build_system(args):
+    min_cores = 5  # 1 main + NUM_PRODUCERS + NUM_CONSUMERS (2+2)
+    if args.num_cores < min_cores:
+        raise ValueError(
+            f"--num-cores {args.num_cores} is too small; "
+            f"workload needs at least {min_cores} thread contexts "
+            f"(gem5 SE mode provides 1 context per core)"
+        )
+
     # Processor: N-core RISC-V TimingSimpleCPU
     processor = SimpleProcessor(
         cpu_type=CPUTypes.TIMING,

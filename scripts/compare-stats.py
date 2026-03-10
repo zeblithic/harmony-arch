@@ -129,11 +129,17 @@ def generate_report(
     req_m = mutable_stats.get("Request_Control msgs")
     req_w = worm_stats.get("Request_Control msgs")
     if req_m is not None and req_w is not None and req_m > 0:
-        reduction = (1 - req_w / req_m) * 100
-        lines.append(
-            f"- **Request_Control messages:** {reduction:.1f}% reduction — "
-            "fewer snoops and invalidation broadcasts."
-        )
+        change = (1 - req_w / req_m) * 100
+        if change >= 0:
+            lines.append(
+                f"- **Request_Control messages:** {change:.1f}% reduction — "
+                "fewer snoops and invalidation broadcasts."
+            )
+        else:
+            lines.append(
+                f"- **Request_Control messages:** {abs(change):.1f}% increase — "
+                "WORM arena/CAS overhead may be generating extra coherence traffic."
+            )
 
     ticks_m = mutable_stats.get("simTicks")
     ticks_w = worm_stats.get("simTicks")

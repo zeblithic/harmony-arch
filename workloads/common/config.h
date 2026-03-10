@@ -31,4 +31,8 @@
 _Static_assert(MUTABLE_POOL_SIZE >= NUM_PRODUCERS,
                "MUTABLE_POOL_SIZE must be >= NUM_PRODUCERS for startup parallelism");
 
+_Static_assert(NUM_PRODUCERS == NUM_CONSUMERS,
+               "Workloads assume 1:1 producer-consumer pairing; "
+               "update mailbox indexing before changing this ratio");
+
 #endif /* HARMONY_WORKLOAD_CONFIG_H */
