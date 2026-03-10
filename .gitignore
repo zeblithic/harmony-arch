@@ -1,0 +1,27 @@
+# gem5 build artifacts
+gem5/build/
+
+# Simulation results (large, regenerable)
+results/
+
+# Compiled workload binaries
+workloads/mutable/mutable_prodcon
+workloads/mutable/mutable_prodcon_native
+workloads/worm/worm_prodcon
+workloads/worm/worm_prodcon_native
+workloads/mutable/*.o
+workloads/worm/*.o
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
