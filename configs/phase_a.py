@@ -6,7 +6,7 @@ so --num-cores must be >= total threads in the workload.
 
 Usage:
     build/RISCV/gem5.opt configs/phase_a.py --cmd <binary> \
-        [--num-cores 9] [--l1d-size 32kB] [--l2-size 1MB]
+        [--num-cores 5] [--l1d-size 32kB] [--l2-size 1MB]
 """
 
 import argparse
@@ -32,8 +32,8 @@ def parse_args():
         help="Path to the RISC-V binary to simulate"
     )
     parser.add_argument(
-        "--num-cores", type=int, default=9,
-        help="Number of CPU cores (default: 9 — must be >= thread count in workload)"
+        "--num-cores", type=int, default=5,
+        help="Number of CPU cores (default: 5 — must be >= thread count in workload)"
     )
     parser.add_argument(
         "--l1d-size", type=str, default="32kB",

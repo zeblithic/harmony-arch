@@ -108,10 +108,11 @@ static void *consumer_thread(void *arg) {
             /* Spin */
         }
 
-        /* Read and checksum the data */
+        /* slot_status == SLOT_READY guarantees no producer is writing;
+         * read is safe without holding slot_lock. */
         local_checksum += checksum(buffer_pool[slot], BLOCK_SIZE);
 
-        /* Mark slot free for reuse */
+        /* Acquire lock only to update slot_status atomically. */
         lock_slot(slot);
         atomic_store(&slot_status[slot], SLOT_FREE);
         unlock_slot(slot);

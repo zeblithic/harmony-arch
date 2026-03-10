@@ -36,8 +36,8 @@ METRICS = [
     ("Writeback_Control msgs", r"msg_count\.Writeback_Control\s+(\d+)", "sum"),
 
     # Overall
-    ("simTicks", r"^simTicks\s+(\d+)", "first"),
-    ("simOps", r"^simOps\s+(\d+)", "first"),
+    ("simTicks", r"(?:^|\.)simTicks\s+(\d+)", "first"),
+    ("simOps", r"(?:^|\.)simOps\s+(\d+)", "first"),
 ]
 
 

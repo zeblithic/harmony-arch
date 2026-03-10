@@ -6,15 +6,18 @@
 #ifndef HARMONY_WORKLOAD_CONFIG_H
 #define HARMONY_WORKLOAD_CONFIG_H
 
-/* Number of producer threads (each paired with one consumer). */
-#define NUM_PRODUCERS 4
-#define NUM_CONSUMERS 4
+/* Number of producer threads (each paired with one consumer).
+ * 2P + 2C + main = 5 threads → 5 cores in gem5 SE mode (1 context/core).
+ * Main blocks on pthread_join, so 4 cores are actively generating traffic. */
+#define NUM_PRODUCERS 2
+#define NUM_CONSUMERS 2
 
 /* Block size in bytes — matches Harmony's 4KB page size. */
 #define BLOCK_SIZE 4096
 
-/* Number of blocks each producer generates. */
-#define BLOCKS_PER_PRODUCER 16
+/* Number of blocks each producer generates.
+ * Kept at 32 so TOTAL_BLOCKS stays 64 (same data volume as 4P x 16B). */
+#define BLOCKS_PER_PRODUCER 32
 
 /* Total blocks across all producers. */
 #define TOTAL_BLOCKS (NUM_PRODUCERS * BLOCKS_PER_PRODUCER)
